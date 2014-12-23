@@ -23,3 +23,11 @@ Content-type: text/html
 
 hello world
 ```
+
+## 性能测试
+
+```
+[meng.jun@prism002.m6.momo.com fcgi_client]$ php benchmark.php 100 1000
+```
+
+* 第一个参数是进程数量，第二个参数是每个进程的请求次数

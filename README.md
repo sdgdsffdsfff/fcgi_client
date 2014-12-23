@@ -11,9 +11,10 @@ $s = fcgi_request(array(
 	"REQUEST_METHOD"=>'GET',
 ), $fp);
 echo "request result \n$s\n";
+
 ```
 
-## 运行
+## 运行效果
 
 ```
 [meng.jun@prism002.m6.momo.com fcgi_client]$ php client.php

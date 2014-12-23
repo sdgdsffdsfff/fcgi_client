@@ -14,6 +14,7 @@ echo "request result \n$s\n";
 ```
 
 ## 运行
+
 ```
 [meng.jun@prism002.m6.momo.com fcgi_client]$ php client.php
 request result

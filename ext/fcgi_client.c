@@ -455,7 +455,9 @@ PHP_FUNCTION(fcgi_request)
         fcgi_process_buffer(rbuf, rbuf+(size_t)nb, &rlst);
     }
     // php_printf("read parse end\n");
-
+    if (rbuf) {
+       efree(rbuf);
+    }
     for(rec=rlst; rec!=NULL; rec=rec->next)
     {
         if(rec->header->type == FCGI_STDOUT) {

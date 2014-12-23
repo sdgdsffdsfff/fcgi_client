@@ -1,6 +1,6 @@
 # 这是一个PHP fastcgi协议的client
 
-# 使用
+# 进入ext目录下编译一下
 
 ## client.php
 

@@ -1,6 +1,6 @@
 # 这是一个PHP fastcgi协议的client
 
-# [进入ext目录下编译一下](https://git.wemomo.com/meng.jun/fcgi_client/tree/master/ext) 
+# [进入ext目录下编译一下](https://github.com/wudikua/fcgi_client/tree/master/ext) 
 
 ## client.php
 

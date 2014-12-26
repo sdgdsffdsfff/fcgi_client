@@ -186,6 +186,7 @@ PHP_MINFO_FUNCTION(fcgi_client);
 
 PHP_FUNCTION(confirm_fcgi_client_compiled);
 PHP_FUNCTION(fcgi_connect);
+PHP_FUNCTION(fcgi_ponnect);
 PHP_FUNCTION(fcgi_request);
 
 

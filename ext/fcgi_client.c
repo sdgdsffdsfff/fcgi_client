@@ -27,31 +27,33 @@
 #include "ext/standard/info.h"
 #include "php_fcgi_client.h"
 #include "php_network.h"
+#include "standard/file.h"
 
 static int le_fcgi_client;
 
 const zend_function_entry fcgi_client_functions[] = {
-	PHP_FE(confirm_fcgi_client_compiled,	NULL)
-	PHP_FE(fcgi_connect,	NULL)
-	PHP_FE(fcgi_request,	NULL)
-	PHP_FE_END
+    PHP_FE(confirm_fcgi_client_compiled,    NULL)
+    PHP_FE(fcgi_connect,    NULL)
+    PHP_FE(fcgi_pconnect,    NULL)
+    PHP_FE(fcgi_request,    NULL)
+    PHP_FE_END
 };
 
 zend_module_entry fcgi_client_module_entry = {
 #if ZEND_MODULE_API_NO >= 20010901
-	STANDARD_MODULE_HEADER,
+    STANDARD_MODULE_HEADER,
 #endif
-	"fcgi_client",
-	fcgi_client_functions,
-	PHP_MINIT(fcgi_client),
-	PHP_MSHUTDOWN(fcgi_client),
-	PHP_RINIT(fcgi_client),	
-	PHP_RSHUTDOWN(fcgi_client),
-	PHP_MINFO(fcgi_client),
+    "fcgi_client",
+    fcgi_client_functions,
+    PHP_MINIT(fcgi_client),
+    PHP_MSHUTDOWN(fcgi_client),
+    PHP_RINIT(fcgi_client), 
+    PHP_RSHUTDOWN(fcgi_client),
+    PHP_MINFO(fcgi_client),
 #if ZEND_MODULE_API_NO >= 20010901
-	PHP_FCGI_CLIENT_VERSION,
+    PHP_FCGI_CLIENT_VERSION,
 #endif
-	STANDARD_MODULE_PROPERTIES
+    STANDARD_MODULE_PROPERTIES
 };
 
 
@@ -62,43 +64,43 @@ ZEND_GET_MODULE(fcgi_client)
 
 PHP_MINIT_FUNCTION(fcgi_client)
 {
-	return SUCCESS;
+    return SUCCESS;
 }
 
 PHP_MSHUTDOWN_FUNCTION(fcgi_client)
 {
-	return SUCCESS;
+    return SUCCESS;
 }
 
 PHP_RINIT_FUNCTION(fcgi_client)
 {
-	return SUCCESS;
+    return SUCCESS;
 }
 
 PHP_RSHUTDOWN_FUNCTION(fcgi_client)
 {
-	return SUCCESS;
+    return SUCCESS;
 }
 
 PHP_MINFO_FUNCTION(fcgi_client)
 {
-	php_info_print_table_start();
-	php_info_print_table_header(2, "fcgi_client support", "enabled");
-	php_info_print_table_end();
+    php_info_print_table_start();
+    php_info_print_table_header(2, "fcgi_client support", "enabled");
+    php_info_print_table_end();
 }
 
 PHP_FUNCTION(confirm_fcgi_client_compiled)
 {
-	char *arg = NULL;
-	int arg_len, len;
-	char *strg;
+    char *arg = NULL;
+    int arg_len, len;
+    char *strg;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &arg, &arg_len) == FAILURE) {
-		return;
-	}
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &arg, &arg_len) == FAILURE) {
+        return;
+    }
 
-	len = spprintf(&strg, 0, "Congratulations! You have successfully modified ext/%.78s/config.m4. Module %.78s is now compiled into PHP.", "fcgi_client", arg);
-	RETURN_STRINGL(strg, len, 0);
+    len = spprintf(&strg, 0, "Congratulations! You have successfully modified ext/%.78s/config.m4. Module %.78s is now compiled into PHP.", "fcgi_client", arg);
+    RETURN_STRINGL(strg, len, 0);
 }
 
 void fcgi_header_set_request_id(fcgi_header *h, uint16_t request_id)
@@ -121,12 +123,14 @@ void serialize(char* buffer, void *st, size_t size)
    memcpy(buffer, st, size);
 }
 
-fcgi_begin_request* create_begin_request(uint16_t request_id)
+fcgi_begin_request* create_begin_request(uint16_t request_id, int alive)
 {
     fcgi_begin_request *h = (fcgi_begin_request *) emalloc(sizeof(fcgi_begin_request));
     h->header = create_header(FCGI_BEGIN_REQUEST, request_id);
     h->body   = ecalloc(1, sizeof(fcgi_begin_request_body));
-    // h->body->flags |= FCGI_KEEP_CONN;
+    if (alive == 1) {
+        h->body->flags |= FCGI_KEEP_CONN;
+    }
     h->body->role_lo = FCGI_RESPONDER;
     h->header->content_len_lo = sizeof(fcgi_begin_request_body);
     return h;
@@ -307,7 +311,7 @@ int fcgi_process_record(char **beg_buf, char *end_buf, fcgi_record *rec)
     return fcgi_process_content(beg_buf, end_buf, rec);
 }
 
-void fcgi_process_buffer(char* beg_buf, char* end_buf,
+int fcgi_process_buffer(char* beg_buf, char* end_buf,
        fcgi_record_list** head)
 {
 
@@ -325,7 +329,7 @@ void fcgi_process_buffer(char* beg_buf, char* end_buf,
             h = *head;
             h->next = tmp;
         }
-        int re = fcgi_process_record(&beg_buf, end_buf, h);
+        int flag = fcgi_process_record(&beg_buf, end_buf, h);
         // php_printf("result %d\n", re);
         // if( re == FCGI_PROCESS_DONE ){
         //     if(h->header->type == FCGI_STDOUT)
@@ -335,7 +339,7 @@ void fcgi_process_buffer(char* beg_buf, char* end_buf,
 
 
         if ( beg_buf == end_buf )
-            return;
+            return flag;
     }
 }
 
@@ -351,29 +355,29 @@ void print_bytes(char *buf, int n)
 
 PHP_FUNCTION(fcgi_request)
 {
-	zval *array;
-	zval *conn;
-	zval **fcgi_value;
-	int ret;
-	char *buffer = NULL;
-	php_stream *stream;
+    zval *array;
+    zval *conn;
+    zval **fcgi_value;
+    int ret;
+    char *buffer = NULL;
+    php_stream *stream;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zr", &array, &conn) == FAILURE) {
-		RETURN_FALSE;
-	}
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zr", &array, &conn) == FAILURE) {
+        RETURN_FALSE;
+    }
 
-	if (Z_TYPE_P(array) != IS_ARRAY) {
-		RETURN_FALSE;
-	}
+    if (Z_TYPE_P(array) != IS_ARRAY) {
+        RETURN_FALSE;
+    }
 
-	php_stream_from_zval_no_verify(stream, &conn);
+    php_stream_from_zval_no_verify(stream, &conn);
 
-	uint16_t req_id = 1;
+    uint16_t req_id = 1;
     uint16_t len=0;
     int nb, i;
     char *p, *buf, *rbuf;
     fcgi_header* head;
-    fcgi_begin_request* begin_req = create_begin_request(req_id);
+    fcgi_begin_request* begin_req = create_begin_request(req_id, stream->is_persistent);
 
     rbuf = emalloc(5000);
     buf  = emalloc(5000);
@@ -390,18 +394,18 @@ PHP_FUNCTION(fcgi_request)
 
     len = 0;
     for(i = 0; i< zend_hash_num_elements(Z_ARRVAL_P(array)); i++) {
-    	char* key;
-    	ulong idx;
-    	zend_hash_get_current_data(Z_ARRVAL_P(array), (void**) &fcgi_value);
-    	convert_to_string_ex(fcgi_value);
-    	if (zend_hash_get_current_key(Z_ARRVAL_P(array), &key, &idx, 0) == HASH_KEY_IS_STRING) {
+        char* key;
+        ulong idx;
+        zend_hash_get_current_data(Z_ARRVAL_P(array), (void**) &fcgi_value);
+        convert_to_string_ex(fcgi_value);
+        if (zend_hash_get_current_key(Z_ARRVAL_P(array), &key, &idx, 0) == HASH_KEY_IS_STRING) {
             // php_printf("%s : %s\n", key, Z_STRVAL_PP(fcgi_value));
-    		nb = serialize_name_value(p, key, Z_STRVAL_PP(fcgi_value));
-        	len += nb;	
-    	} else {
-    		RETURN_FALSE; 
-    	}
-    	zend_hash_move_forward(Z_ARRVAL_P(array));
+            nb = serialize_name_value(p, key, Z_STRVAL_PP(fcgi_value));
+            len += nb;  
+        } else {
+            RETURN_FALSE; 
+        }
+        zend_hash_move_forward(Z_ARRVAL_P(array));
     }
 
     head->content_len_lo = BYTE_0(len);
@@ -437,13 +441,13 @@ PHP_FUNCTION(fcgi_request)
     // print_bytes(buf, p-buf);
     // php_printf("write len %d\n", p - buf);
     ret = php_stream_write(stream, buf, p - buf);
-	if (buf) {
-	   efree(buf);
-	}
+    if (buf) {
+       efree(buf);
+    }
     // php_printf("write end\n");
-	fcgi_record_list *rlst = NULL, *rec;
-
-    while(1){
+    fcgi_record_list *rlst = NULL, *rec;
+    int flag = FCGI_PROCESS_AGAIN;
+    while(flag == FCGI_PROCESS_AGAIN){
         // php_printf("read begin\n");
         if ((nb = php_stream_read(stream, rbuf, 5000-1)) == -1) {
             RETURN_FALSE;
@@ -452,11 +456,11 @@ PHP_FUNCTION(fcgi_request)
         if(nb == 0)
             break;
         // print_bytes(rbuf, nb);
-        fcgi_process_buffer(rbuf, rbuf+(size_t)nb, &rlst);
+        flag = fcgi_process_buffer(rbuf, rbuf+(size_t)nb, &rlst);
     }
     // php_printf("read parse end\n");
     if (rbuf) {
-       efree(rbuf);
+        efree(rbuf);
     }
     for(rec=rlst; rec!=NULL; rec=rec->next)
     {
@@ -471,85 +475,100 @@ PHP_FUNCTION(fcgi_request)
     RETURN_FALSE;
 }
 
+static void php_fsockopen_stream(INTERNAL_FUNCTION_PARAMETERS, int persistent)
+{
+    char *host;
+    int host_len;
+    long port = -1;
+    zval *zerrno = NULL, *zerrstr = NULL;
+    double timeout = FG(default_socket_timeout);
+    unsigned long conv;
+    struct timeval tv;
+    char *hashkey = NULL;
+    php_stream *stream = NULL;
+    int err;
+    char *hostname = NULL;
+    long hostname_len;
+    char *errstr = NULL;
+
+    RETVAL_FALSE;
+    
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|lzzd", &host, &host_len, &port, &zerrno, &zerrstr, &timeout) == FAILURE) {
+        RETURN_FALSE;
+    }
+
+    if (persistent) {
+        spprintf(&hashkey, 0, "fcgi_sockopen__%s:%ld", host, port);
+    }
+
+    if (port > 0) {
+        hostname_len = spprintf(&hostname, 0, "%s:%ld", host, port);
+    } else {
+        hostname_len = host_len;
+        hostname = host;
+    }
+    
+    /* prepare the timeout value for use */
+    conv = (unsigned long) (timeout * 1000000.0);
+    tv.tv_sec = conv / 1000000;
+    tv.tv_usec = conv % 1000000;
+
+    if (zerrno) {
+        zval_dtor(zerrno);
+        ZVAL_LONG(zerrno, 0);
+    }
+    if (zerrstr) {
+        zval_dtor(zerrstr);
+        ZVAL_STRING(zerrstr, "", 1);
+    }
+
+    stream = php_stream_xport_create(hostname, hostname_len, REPORT_ERRORS,
+            STREAM_XPORT_CLIENT | STREAM_XPORT_CONNECT, hashkey, &tv, NULL, &errstr, &err);
+
+    if (port > 0) {
+        efree(hostname);
+    }
+    if (stream == NULL) {
+        php_error_docref(NULL TSRMLS_CC, E_WARNING, "unable to connect to %s:%ld (%s)", host, port, errstr == NULL ? "Unknown error" : errstr);
+    }
+
+    if (hashkey) {
+        efree(hashkey);
+    }
+    
+    if (stream == NULL) {
+        if (zerrno) {
+            zval_dtor(zerrno);
+            ZVAL_LONG(zerrno, err);
+        }
+        if (zerrstr && errstr) {
+            /* no need to dup; we need to efree buf anyway */
+            zval_dtor(zerrstr);
+            ZVAL_STRING(zerrstr, errstr, 0);
+        }
+        else if (!zerrstr && errstr) {
+            efree(errstr);
+        } 
+
+        RETURN_FALSE;
+    }
+
+    if (errstr) {
+        efree(errstr);
+    }
+        
+    php_stream_to_zval(stream, return_value);
+}
+
+
+PHP_FUNCTION(fcgi_pconnect)
+{
+    php_fsockopen_stream(INTERNAL_FUNCTION_PARAM_PASSTHRU, 1);
+}
+
 PHP_FUNCTION(fcgi_connect)
 {
-	char *host;
-	int host_len;
-	long port = -1;
-	zval *zerrno = NULL, *zerrstr = NULL;
-	double timeout = 10;
-	unsigned long conv;
-	struct timeval tv;
-	char *hashkey = NULL;
-	php_stream *stream = NULL;
-	int err;
-	char *hostname = NULL;
-	long hostname_len;
-	char *errstr = NULL;
-
-	RETVAL_FALSE;
-	
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|lzzd", &host, &host_len, &port, &zerrno, &zerrstr, &timeout) == FAILURE) {
-		RETURN_FALSE;
-	}
-
-	if (port > 0) {
-		hostname_len = spprintf(&hostname, 0, "%s:%ld", host, port);
-	} else {
-		hostname_len = host_len;
-		hostname = host;
-	}
-	
-	/* prepare the timeout value for use */
-	conv = (unsigned long) (timeout * 1000000.0);
-	tv.tv_sec = conv / 1000000;
-	tv.tv_usec = conv % 1000000;
-
-	if (zerrno)	{
-		zval_dtor(zerrno);
-		ZVAL_LONG(zerrno, 0);
-	}
-	if (zerrstr) {
-		zval_dtor(zerrstr);
-		ZVAL_STRING(zerrstr, "", 1);
-	}
-
-	stream = php_stream_xport_create(hostname, hostname_len, REPORT_ERRORS,
-			STREAM_XPORT_CLIENT | STREAM_XPORT_CONNECT, hashkey, &tv, NULL, &errstr, &err);
-
-	if (port > 0) {
-		efree(hostname);
-	}
-	if (stream == NULL) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "unable to connect to %s:%ld (%s)", host, port, errstr == NULL ? "Unknown error" : errstr);
-	}
-
-	if (hashkey) {
-		efree(hashkey);
-	}
-	
-	if (stream == NULL)	{
-		if (zerrno) {
-			zval_dtor(zerrno);
-			ZVAL_LONG(zerrno, err);
-		}
-		if (zerrstr && errstr) {
-			/* no need to dup; we need to efree buf anyway */
-			zval_dtor(zerrstr);
-			ZVAL_STRING(zerrstr, errstr, 0);
-		}
-		else if (!zerrstr && errstr) {
-			efree(errstr);
-		} 
-
-		RETURN_FALSE;
-	}
-
-	if (errstr) {
-		efree(errstr);
-	}
-		
-	php_stream_to_zval(stream, return_value);
+    php_fsockopen_stream(INTERNAL_FUNCTION_PARAM_PASSTHRU, 1);
 }
 
 

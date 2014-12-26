@@ -5,14 +5,14 @@ for ($n=0; $n<$argv[1]; $n++) {
 	if ($pid) {
 	        continue;
 	} else {
+		$fp = fcgi_pconnect('web-dev001.m6', 9000);
 		for ($i=0;$i<$argv[2];$i++){
-			$fp = fcgi_connect('web-dev001.m6', 9000);
 			$s = fcgi_request(array(
 			        "SCRIPT_FILENAME" => "/home/meng.jun/deploy/src/main/php/echo.php",
 			        "REQUEST_METHOD"=>'GET',
 			), $fp);
-			fclose($fp);
 		}
+		fclose($fp);
 		die;
 	}
 }

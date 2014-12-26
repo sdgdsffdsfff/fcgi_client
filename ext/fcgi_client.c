@@ -375,11 +375,10 @@ PHP_FUNCTION(fcgi_request)
     uint16_t req_id = 1;
     uint16_t len=0;
     int nb, i;
-    char *p, *buf, *rbuf;
+    char *p, *buf;
     fcgi_header* head;
     fcgi_begin_request* begin_req = create_begin_request(req_id, stream->is_persistent);
 
-    rbuf = emalloc(5000);
     buf  = emalloc(5000);
     p = buf;
     serialize(p, begin_req->header, sizeof(fcgi_header));
@@ -441,27 +440,22 @@ PHP_FUNCTION(fcgi_request)
     // print_bytes(buf, p-buf);
     // php_printf("write len %d\n", p - buf);
     ret = php_stream_write(stream, buf, p - buf);
-    if (buf) {
-       efree(buf);
-    }
     // php_printf("write end\n");
     fcgi_record_list *rlst = NULL, *rec;
     int flag = FCGI_PROCESS_AGAIN;
     while(flag == FCGI_PROCESS_AGAIN){
         // php_printf("read begin\n");
-        if ((nb = php_stream_read(stream, rbuf, 5000-1)) == -1) {
+        if ((nb = php_stream_read(stream, buf, 5000-1)) == -1) {
             RETURN_FALSE;
         }
         // php_printf("read end\n");
         if(nb == 0)
             break;
-        // print_bytes(rbuf, nb);
-        flag = fcgi_process_buffer(rbuf, rbuf+(size_t)nb, &rlst);
+        // print_bytes(buf, nb);
+        flag = fcgi_process_buffer(buf, buf+(size_t)nb, &rlst);
     }
     // php_printf("read parse end\n");
-    if (rbuf) {
-        efree(rbuf);
-    }
+    efree(buf);
     for(rec=rlst; rec!=NULL; rec=rec->next)
     {
         if(rec->header->type == FCGI_STDOUT) {

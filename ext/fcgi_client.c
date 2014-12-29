@@ -383,9 +383,11 @@ PHP_FUNCTION(fcgi_request)
     p = buf;
     serialize(p, begin_req->header, sizeof(fcgi_header));
     p += sizeof(fcgi_header);
+    efree(begin_req->header);
     // php_printf("write len %d\n", p-buf);
     serialize(p, begin_req->body, sizeof(fcgi_begin_request_body));
     p += sizeof(fcgi_begin_request_body);
+    efree(begin_req->body);
     // php_printf("write len %d\n", p-buf);
 
     /* Sending fcgi_params */

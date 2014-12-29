@@ -439,7 +439,14 @@ PHP_FUNCTION(fcgi_request)
     
     // print_bytes(buf, p-buf);
     // php_printf("write len %d\n", p - buf);
-    ret = php_stream_write(stream, buf, p - buf);
+    if ((ret = php_stream_write(stream, buf, p - buf)) < p-buf) {
+        if (buf) {
+            efree(buf);
+            efree(head);
+            efree(begin_req);
+        }
+        RETURN_FALSE;
+    }
     // php_printf("write end\n");
     fcgi_record_list *rlst = NULL, *rec;
     int flag = FCGI_PROCESS_AGAIN;
